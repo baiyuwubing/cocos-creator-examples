@@ -1,233 +1,236 @@
-// author: http://lamyoung.com/
-
-// https://mp.weixin.qq.com/s/EkMP_UcFcWTlSn_4Ml8zsA
-
 const gfx = cc.gfx;
-
-const { ccclass, property, executeInEditMode, requireComponent, menu } = cc._decorator;
+const { ccclass, property, executeInEditMode, requireComponent } = cc._decorator;
 
 @ccclass
 @executeInEditMode
 @requireComponent(cc.MeshRenderer)
-@menu("lamyoung.com/MeshPolygonSprite")
 export default class MeshPolygonSprite extends cc.Component {
-    @property
-    _offset: cc.Vec2 = cc.v2(0, 0)
-    /**
-     * !#en Position offset
-     * !#zh 位置偏移量
-     * @property offset
-     * @type {Vec2}
-     */
-    get offset() {
-        return this._offset;
-    }
-    @property({ type: cc.Vec2, tooltip: '位置偏移量' })
-    set offset(value) {
-        this._offset = value;
-        this._updateMesh();
-        this._applyVertexes();
-    }
 
-    @property
-    _spriteFrame: cc.SpriteFrame = null;
-    /**
-    * !#en The sprite frame of the sprite.
-    * !#zh 精灵的精灵帧
-    * @property spriteFrame
-    * @type {SpriteFrame}
-    * @example
-    * sprite.spriteFrame = newSpriteFrame;
-    */
-    get spriteFrame() {
-        return this._spriteFrame;
-    }
-    @property({ type: cc.SpriteFrame, tooltip: '精灵的精灵帧' })
-    set spriteFrame(value) {
-        this._spriteFrame = value;
-        this._refreshAll();
-    }
+	@property
+	_offset: cc.Vec2 = cc.v2(0, 0);
+	/**
+	 * !#en Position offset
+	 * !#zh 位置偏移量
+	 * @property offset
+	 * @type {Vec2}
+	 */
+	get offset() {
+		return this._offset;
+	}
+	@property({ type: cc.Vec2, tooltip: '位置偏移量' })
+	set offset(value) {
+		this._offset = value;
+		this._updateMesh();
+		this._applyVertexes();
+	}
 
-    @property
-    _vertexes: cc.Vec2[] = [cc.v2(0, 0), cc.v2(0, 100), cc.v2(100, 100), cc.v2(100, 0)]
-    /**
-     * !#en Position vertexes
-     * !#zh 顶点坐标
-     * @property vertexes
-     * @type {Vec2}
-     */
-    get vertexes() {
-        return this._vertexes;
-    }
-    @property({ type: cc.Vec2, tooltip: '顶点坐标' })
-    set vertexes(value) {
-        this._vertexes = value;
-        this._updateMesh();
-        this._applyVertexes();
-    }
+	@property
+	_spriteFrame: cc.SpriteFrame = null;
+	/**
+	 * !#en The sprite frame of the sprite.
+	 * !#zh 精灵的精灵帧
+	 * @property spriteFrame
+	 * @type {SpriteFrame}
+	 * @example
+	 * sprite.spriteFrame = newSpriteFrame;
+	 */
+	get spriteFrame() {
+		return this._spriteFrame;
+	}
+	@property({ type: cc.SpriteFrame, tooltip: '精灵的精灵帧' })
+	set spriteFrame(value) {
+		if (this._spriteFrame == value) return;
+		this._spriteFrame = value;
+		this._resetVertexes();
+		this._refreshAll();
+	}
 
-    private renderer: cc.MeshRenderer = null;
-    private mesh: cc.Mesh = null;
-    private _meshCache: { [key: number]: cc.Mesh } = {};
+	@property
+	_vertexes: cc.Vec2[] = [cc.v2(0, 0), cc.v2(0, 100), cc.v2(100, 100), cc.v2(100, 0)];
+	/**
+	 * !#en Position vertexes
+	 * !#zh 顶点坐标
+	 * @property vertexes
+	 * @type {Vec2}
+	 */
+	get vertexes() {
+		return this._vertexes;
+	}
+	@property({ type: cc.Vec2, tooltip: '顶点坐标' })
+	set vertexes(value) {
+		this._vertexes = value;
+		this._resetNodeSize();
+		this._updateMesh();
+		this._applyVertexes();
+	}
 
-    onLoad() {
-        this._meshCache = {};
-        const renderer = this.node.getComponent(cc.MeshRenderer) || this.node.addComponent(cc.MeshRenderer);
+	private renderer: cc.MeshRenderer = null;
+	private mesh: cc.Mesh = null;
+	private _meshCache: { [key: number]: cc.Mesh } = {};
 
-        renderer.mesh = null;
-        this.renderer = renderer;
+	onLoad() {
+		this._meshCache = {};
+		const renderer = this.node.getComponent(cc.MeshRenderer) || this.node.addComponent(cc.MeshRenderer);
 
-        let builtinMaterial = cc.Material.getBuiltinMaterial("unlit");//createWithBuiltin("unlit");
-        renderer.setMaterial(0, builtinMaterial);
-    }
+		renderer.mesh = null;
+		this.renderer = renderer;
 
-    onEnable() {
-        this._refreshAll();
-    }
+		let builtinMaterial = cc.Material.getBuiltinMaterial('unlit');
+		renderer.setMaterial(0, builtinMaterial);
+	}
 
-    private _refreshAll() {
-        this._updateMesh();
-        this._applySpriteFrame();
-        this._applyVertexes();
-    }
+	onEnable() {
+		this._refreshAll();
+	}
 
-    private _updateMesh() {
-        
-        // cc.log('_updateMesh')
-        let mesh = this._meshCache[this.vertexes.length];
-        if (!mesh) {
-            mesh = new cc.Mesh();
-            mesh.init(new gfx.VertexFormat([
-                { name: gfx.ATTR_POSITION, type: gfx.ATTR_TYPE_FLOAT32, num: 2 },
-                { name: gfx.ATTR_UV0, type: gfx.ATTR_TYPE_FLOAT32, num: 2 },
-            ]), this.vertexes.length, true);
-            this._meshCache[this.vertexes.length] = mesh;
-        }
-        cc.log(mesh.nativeUrl)
-        this.mesh = mesh;
-    }
+	_resetVertexes() {
+		this._vertexes.length = 0;
+		let node = this.node, frame = this.spriteFrame,
+			cw = frame?._originalSize.width, ch = frame?._originalSize.height,
+			appx = node.anchorX * cw, appy = node.anchorY * ch,
+			nw = node.width, nh = node.height,
+			anx = node.anchorX * nw, any = node.anchorY * nh;
+		if (this.spriteFrame)
+			this._vertexes.push(cc.v2(-appx, -appy), cc.v2(cw - appx, -appy), cc.v2(cw - appx, ch - appy), cc.v2(-appx, ch - appy));
+		else
+			this._vertexes.push(cc.v2(-anx, -any), cc.v2(nw - anx, -any), cc.v2(nw - anx, nh - any), cc.v2(-anx, nh - any));
+		this._resetNodeSize();
+	}
 
-    private _lerp(a: number, b: number, w: number) {
-        return a + w * (b - a);
-    }
+	_resetNodeSize() {
+		let x = 0, y = 0;
+		this._vertexes.forEach(value => {
+			x = Math.max(x, Math.abs(value.x));
+			y = Math.max(y, Math.abs(value.y));
+		});
+		this.node.setContentSize(x * 2, y * 2);
+	}
 
+	_refreshAll() {
+		this._resetNodeSize();
+		this._updateMesh();
+		this._applySpriteFrame();
+		this._applyVertexes();
+	}
 
-    // 更新顶点
-    private _applyVertexes() {
-        // cc.log('_applyVertexes');
+	_updateMesh() {
+		let mesh = this._meshCache[this.vertexes.length];
+		if (!mesh) {
+			mesh = new cc.Mesh();
+			mesh.init(new gfx.VertexFormat([
+				{ name: gfx.ATTR_POSITION, type: gfx.ATTR_TYPE_FLOAT32, num: 2 },
+				{ name: gfx.ATTR_UV0, type: gfx.ATTR_TYPE_FLOAT32, num: 2 }
+			]), this.vertexes.length, true);
+			this._meshCache[this.vertexes.length] = mesh;
+		}
+		this.mesh = mesh;
+	}
 
-        // 设置坐标
-        const mesh = this.mesh;
-        mesh.setVertices(gfx.ATTR_POSITION, this.vertexes);
+	_applySpriteFrame() {
+		if (this.spriteFrame) {
+			const renderer = this.renderer;
+			let material = renderer.getMaterial(0);
+			// Reset material
+			let texture = this.spriteFrame.getTexture();
+			material.define('USE_DIFFUSE_TEXTURE', true);
+			material.setProperty('diffuseTexture', texture);
+		} else if (this.renderer)
+			this.renderer.mesh = null;
+	}
 
-        this._calculateUV();
+	// 更新定点
+	_applyVertexes() {
+		// 设置坐标
+		const mesh = this.mesh;
+		mesh.setVertices(gfx.ATTR_POSITION, this.vertexes);
 
-        if (this.vertexes.length >= 3) {
-            // 计算顶点索引 
-            const ids = [];
-            // 多边形切割 poly2tri，支持简单的多边形，确保顶点按顺序且不自交
-            const countor = this.vertexes.map((p) => { return { x: p.x, y: p.y } });
-            const swctx = new poly2tri.SweepContext(countor, { cloneArrays: true });
-            // cc.log('countor', countor.length, countor);
-            try {
-                // 防止失败 使用try 
-                swctx.triangulate();
-                // cc.log('triangulate');
-                const triangles = swctx.getTriangles();
-                // cc.log('triangles', triangles.length, triangles);
+		this._calculateUV();
 
-                triangles.forEach((tri) => {
-                    tri.getPoints().forEach(p => {
-                        const i = countor.indexOf(p as any);
-                        ids.push(i);
-                    });
-                })
-            } catch (e) {
-                cc.error('poly2tri error', e);
-            }
+		if (this.vertexes.length >= 3) {
+			// 计算顶点索引
+			const ids = [];
+			// 多边形切割 poly2tri，支持简单的多边形，确保顶点按顺序切不自交
+			const countor = this.vertexes.map((p) => { return { x: p.x, y: p.y } });
+			const swctx = new poly2tri.SweepContext(countor, { cloneArrays: true });
 
-            if (ids.length === 0) {
-                cc.log('计算顶点索引 失败');
-                ids.push(...this.vertexes.map((v, i) => { return i }));
-            }
-            // cc.log('ids');
-            // cc.log(ids);
-            mesh.setIndices(ids);
-            
-            this.renderer.mesh = mesh;
-        }
-    }
+			try {
+				// 防止失败 使用try
+				swctx.triangulate();
+				const triangles = swctx.getTriangles();
 
-    private _calculateUV() {
-        const mesh = this.mesh;
-        if (this.spriteFrame) {
-            // cc.log('_calculateUV')
-            const uv = this.spriteFrame.uv;
-            const texture = this.spriteFrame.getTexture();
-            /**
-             *    t
-             * l     r
-             *    b
-             */
-            const uv_l = uv[0];
-            const uv_r = uv[6];
-            const uv_b = uv[3];
-            const uv_t = uv[5];
+				triangles.forEach((tri) => {
+					tri.getPoints().forEach(p => {
+						const i = countor.indexOf(p as any);
+						ids.push(i);
+					})
+				})
+			} catch (e) {
+				cc.error('poly2tri error', e);
+			}
 
-            // cc.log('uv', uv)
+			if (ids.length === 0) {
+				cc.log('计算顶点索引 失败');
+				ids.push(...this.vertexes.map((v, i) => { return i }));
+			}
+			mesh.setIndices(ids);
+			this.renderer.mesh = mesh;
+		}
+	}
 
-            // 计算uv
-            const uvs = [];
-            for (const pt of this.vertexes) {
-                const u = this._lerp(uv_l, uv_r, (pt.x + texture.width / 2 + this.offset.x) / texture.width);
-                const v = this._lerp(uv_b, uv_t, (pt.y + texture.height / 2 - this.offset.y) / texture.height);
-                uvs.push(cc.v2(u, v));
-            }
-            mesh.setVertices(gfx.ATTR_UV0, uvs);
-        }
-    }
+	_calculateUV() {
+		const mesh = this.mesh;
+		if (this.spriteFrame) {
+			const uv = this.spriteFrame.uv;
+			const texture = this.spriteFrame.getTexture();
+			/**
+			 *    t
+			 * l     r
+			 *    b
+			 */
+			let uv_l = uv[0];
+			let uv_r = uv[6];
+			let uv_b = uv[3];
+			let uv_t = uv[5];
+			if (this.spriteFrame.isRotated()) {
+				uv_l = uv[5];
+				uv_r = uv[3];
+				uv_b = uv[0];
+				uv_t = uv[6];
+			}
 
+			const size = this.spriteFrame._originalSize;
+			// let node = this.node,
+			// 	cw = node.width, ch = node.height,
+			// 	appx = node.anchorX * cw, appy = node.anchorY * ch;
+			// let frame = this.spriteFrame,
+			// 	ow = frame._originalSize.width, oh = frame._originalSize.height,
+			// 	rw = frame._rect.width, rh = frame._rect.height,
+			// 	offset = frame._offset,
+			// 	scaleX = cw / ow, scaleY = ch / oh;
 
-    // 更新图片
-    private _applySpriteFrame() {
-        // cc.log('_applySpriteFrame');
-        if (this.spriteFrame) {
-            const renderer = this.renderer;
-            let material = renderer.getMaterial(0);
-            // Reset material
-            let texture = this.spriteFrame.getTexture();
-            material.define("USE_DIFFUSE_TEXTURE", true);
-            material.setProperty('diffuseTexture', texture);
-        }
-    }
+			// 计算uv
+			const uvs = [];
+			for (const pt of this.vertexes) {
+				const u = this._lerp(uv_l, uv_r, (pt.x + size.width / 2 + this.offset.x) / size.width);
+				const v = this._lerp(uv_b, uv_t, (pt.y + size.height / 2 - this.offset.y) / size.height);
+				if (this.spriteFrame.isRotated())
+					uvs.push(cc.v2(v, u));
+				else
+					uvs.push(cc.v2(u, v));
+			}
+			mesh.setVertices(gfx.ATTR_UV0, uvs);
+		}
+	}
+
+	_clamp(a: number, b: number, w: number) {
+		if (w < a) return a;
+		if (w > b) return b;
+		return w;
+	}
+
+	_lerp(a: number, b: number, w: number) {
+		w = this._clamp(0, 1, w);
+		return a + w * (b - a);
+	}
+
 }
-
-
-/*
-https://mp.weixin.qq.com/s/Ht0kIbaeBEds_wUeUlu8JQ
-
-*/
-
-// 欢迎关注微信公众号[白玉无冰]
-
-/**
-█████████████████████████████████████
-█████████████████████████████████████
-████ ▄▄▄▄▄ █▀█ █▄██▀▄ ▄▄██ ▄▄▄▄▄ ████
-████ █   █ █▀▀▀█ ▀▄▀▀▀█▄▀█ █   █ ████
-████ █▄▄▄█ █▀ █▀▀▀ ▀▄▄ ▄ █ █▄▄▄█ ████
-████▄▄▄▄▄▄▄█▄▀ ▀▄█ ▀▄█▄▀ █▄▄▄▄▄▄▄████
-████▄▄  ▄▀▄▄ ▄▀▄▀▀▄▄▄ █ █ ▀ ▀▄█▄▀████
-████▀ ▄  █▄█▀█▄█▀█  ▀▄ █ ▀ ▄▄██▀█████
-████ ▄▀▄▄▀▄ █▄▄█▄ ▀▄▀ ▀ ▀ ▀▀▀▄ █▀████
-████▀ ██ ▀▄ ▄██ ▄█▀▄ ██▀ ▀ █▄█▄▀█████
-████   ▄██▄▀ █▀▄▀▄▀▄▄▄▄ ▀█▀ ▀▀ █▀████
-████ █▄ █ ▄ █▀ █▀▄█▄▄▄▄▀▄▄█▄▄▄▄▀█████
-████▄█▄█▄█▄█▀ ▄█▄   ▀▄██ ▄▄▄ ▀   ████
-████ ▄▄▄▄▄ █▄██ ▄█▀  ▄   █▄█  ▄▀█████
-████ █   █ █ ▄█▄ ▀  ▀▀██ ▄▄▄▄ ▄▀ ████
-████ █▄▄▄█ █ ▄▄▀ ▄█▄█▄█▄ ▀▄   ▄ █████
-████▄▄▄▄▄▄▄█▄██▄▄██▄▄▄█████▄▄█▄██████
-█████████████████████████████████████
-█████████████████████████████████████
- */
