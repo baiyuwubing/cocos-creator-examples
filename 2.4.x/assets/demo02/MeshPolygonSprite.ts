@@ -1,13 +1,18 @@
+// author: http://lamyoung.com/
+
+// https://mp.weixin.qq.com/s/EkMP_UcFcWTlSn_4Ml8zsA
+
 const gfx = cc.gfx;
-const { ccclass, property, executeInEditMode, requireComponent } = cc._decorator;
+
+const { ccclass, property, executeInEditMode, requireComponent, menu } = cc._decorator;
 
 @ccclass
 @executeInEditMode
 @requireComponent(cc.MeshRenderer)
+@menu("lamyoung.com/MeshPolygonSprite")
 export default class MeshPolygonSprite extends cc.Component {
-
 	@property
-	_offset: cc.Vec2 = cc.v2(0, 0);
+	_offset: cc.Vec2 = cc.v2(0, 0)
 	/**
 	 * !#en Position offset
 	 * !#zh 位置偏移量
@@ -27,13 +32,13 @@ export default class MeshPolygonSprite extends cc.Component {
 	@property
 	_spriteFrame: cc.SpriteFrame = null;
 	/**
-	 * !#en The sprite frame of the sprite.
-	 * !#zh 精灵的精灵帧
-	 * @property spriteFrame
-	 * @type {SpriteFrame}
-	 * @example
-	 * sprite.spriteFrame = newSpriteFrame;
-	 */
+	* !#en The sprite frame of the sprite.
+	* !#zh 精灵的精灵帧
+	* @property spriteFrame
+	* @type {SpriteFrame}
+	* @example
+	* sprite.spriteFrame = newSpriteFrame;
+	*/
 	get spriteFrame() {
 		return this._spriteFrame;
 	}
@@ -46,7 +51,7 @@ export default class MeshPolygonSprite extends cc.Component {
 	}
 
 	@property
-	_vertexes: cc.Vec2[] = [cc.v2(0, 0), cc.v2(0, 100), cc.v2(100, 100), cc.v2(100, 0)];
+	_vertexes: cc.Vec2[] = [cc.v2(0, 0), cc.v2(0, 100), cc.v2(100, 100), cc.v2(100, 0)]
 	/**
 	 * !#en Position vertexes
 	 * !#zh 顶点坐标
@@ -75,7 +80,7 @@ export default class MeshPolygonSprite extends cc.Component {
 		renderer.mesh = null;
 		this.renderer = renderer;
 
-		let builtinMaterial = cc.Material.getBuiltinMaterial('unlit');
+		let builtinMaterial = cc.Material.getBuiltinMaterial("unlit");//createWithBuiltin("unlit");
 		renderer.setMaterial(0, builtinMaterial);
 	}
 
@@ -83,7 +88,7 @@ export default class MeshPolygonSprite extends cc.Component {
 		this._refreshAll();
 	}
 
-	_resetVertexes() {
+	private _resetVertexes() {
 		this._vertexes.length = 0;
 		let node = this.node, frame = this.spriteFrame,
 			cw = frame?._originalSize.width, ch = frame?._originalSize.height,
@@ -97,49 +102,55 @@ export default class MeshPolygonSprite extends cc.Component {
 		this._resetNodeSize();
 	}
 
-	_resetNodeSize() {
-		let x = 0, y = 0;
+	private _resetNodeSize() {
+		let l = 0, r = 0, b = 0, t = 0;
 		this._vertexes.forEach(value => {
-			x = Math.max(x, Math.abs(value.x));
-			y = Math.max(y, Math.abs(value.y));
+			l = Math.min(l, value.x);
+			r = Math.max(r, value.x);
+			b = Math.min(b, value.y);
+			t = Math.max(t, value.y);
 		});
-		this.node.setContentSize(x * 2, y * 2);
+		this.node.setContentSize(r - l, t - b);
 	}
 
-	_refreshAll() {
-		this._resetNodeSize();
+	private _refreshAll() {
 		this._updateMesh();
 		this._applySpriteFrame();
 		this._applyVertexes();
 	}
 
-	_updateMesh() {
+	private _updateMesh() {
+
+		// cc.log('_updateMesh')
 		let mesh = this._meshCache[this.vertexes.length];
 		if (!mesh) {
 			mesh = new cc.Mesh();
 			mesh.init(new gfx.VertexFormat([
 				{ name: gfx.ATTR_POSITION, type: gfx.ATTR_TYPE_FLOAT32, num: 2 },
-				{ name: gfx.ATTR_UV0, type: gfx.ATTR_TYPE_FLOAT32, num: 2 }
+				{ name: gfx.ATTR_UV0, type: gfx.ATTR_TYPE_FLOAT32, num: 2 },
 			]), this.vertexes.length, true);
 			this._meshCache[this.vertexes.length] = mesh;
 		}
+		cc.log(mesh.nativeUrl)
 		this.mesh = mesh;
 	}
 
-	_applySpriteFrame() {
-		if (this.spriteFrame) {
-			const renderer = this.renderer;
-			let material = renderer.getMaterial(0);
-			// Reset material
-			let texture = this.spriteFrame.getTexture();
-			material.define('USE_DIFFUSE_TEXTURE', true);
-			material.setProperty('diffuseTexture', texture);
-		} else if (this.renderer)
-			this.renderer.mesh = null;
+	private _clamp(a: number, b: number, w: number) {
+		if (w < a) return a;
+		if (w > b) return b;
+		return w;
 	}
 
-	// 更新定点
-	_applyVertexes() {
+	private _lerp(a: number, b: number, w: number) {
+		w = this._clamp(0, 1, w);
+		return a + w * (b - a);
+	}
+
+
+	// 更新顶点
+	private _applyVertexes() {
+		// cc.log('_applyVertexes');
+
 		// 设置坐标
 		const mesh = this.mesh;
 		mesh.setVertices(gfx.ATTR_POSITION, this.vertexes);
@@ -147,22 +158,24 @@ export default class MeshPolygonSprite extends cc.Component {
 		this._calculateUV();
 
 		if (this.vertexes.length >= 3) {
-			// 计算顶点索引
+			// 计算顶点索引 
 			const ids = [];
-			// 多边形切割 poly2tri，支持简单的多边形，确保顶点按顺序切不自交
+			// 多边形切割 poly2tri，支持简单的多边形，确保顶点按顺序且不自交
 			const countor = this.vertexes.map((p) => { return { x: p.x, y: p.y } });
 			const swctx = new poly2tri.SweepContext(countor, { cloneArrays: true });
-
+			// cc.log('countor', countor.length, countor);
 			try {
-				// 防止失败 使用try
+				// 防止失败 使用try 
 				swctx.triangulate();
+				// cc.log('triangulate');
 				const triangles = swctx.getTriangles();
+				// cc.log('triangles', triangles.length, triangles);
 
 				triangles.forEach((tri) => {
 					tri.getPoints().forEach(p => {
 						const i = countor.indexOf(p as any);
 						ids.push(i);
-					})
+					});
 				})
 			} catch (e) {
 				cc.error('poly2tri error', e);
@@ -172,14 +185,18 @@ export default class MeshPolygonSprite extends cc.Component {
 				cc.log('计算顶点索引 失败');
 				ids.push(...this.vertexes.map((v, i) => { return i }));
 			}
+			// cc.log('ids');
+			// cc.log(ids);
 			mesh.setIndices(ids);
+
 			this.renderer.mesh = mesh;
 		}
 	}
 
-	_calculateUV() {
+	private _calculateUV() {
 		const mesh = this.mesh;
 		if (this.spriteFrame) {
+			// cc.log('_calculateUV')
 			const uv = this.spriteFrame.uv;
 			const texture = this.spriteFrame.getTexture();
 			/**
@@ -199,14 +216,8 @@ export default class MeshPolygonSprite extends cc.Component {
 			}
 
 			const size = this.spriteFrame._originalSize;
-			// let node = this.node,
-			// 	cw = node.width, ch = node.height,
-			// 	appx = node.anchorX * cw, appy = node.anchorY * ch;
-			// let frame = this.spriteFrame,
-			// 	ow = frame._originalSize.width, oh = frame._originalSize.height,
-			// 	rw = frame._rect.width, rh = frame._rect.height,
-			// 	offset = frame._offset,
-			// 	scaleX = cw / ow, scaleY = ch / oh;
+
+			// cc.log('uv', uv)
 
 			// 计算uv
 			const uvs = [];
@@ -222,15 +233,48 @@ export default class MeshPolygonSprite extends cc.Component {
 		}
 	}
 
-	_clamp(a: number, b: number, w: number) {
-		if (w < a) return a;
-		if (w > b) return b;
-		return w;
-	}
 
-	_lerp(a: number, b: number, w: number) {
-		w = this._clamp(0, 1, w);
-		return a + w * (b - a);
+	// 更新图片
+	private _applySpriteFrame() {
+		// cc.log('_applySpriteFrame');
+		if (this.spriteFrame) {
+			const renderer = this.renderer;
+			let material = renderer.getMaterial(0);
+			// Reset material
+			let texture = this.spriteFrame.getTexture();
+			material.define("USE_DIFFUSE_TEXTURE", true);
+			material.setProperty('diffuseTexture', texture);
+		} else if (this.renderer)
+			this.renderer.mesh = null;
 	}
-
 }
+
+
+/*
+https://mp.weixin.qq.com/s/Ht0kIbaeBEds_wUeUlu8JQ
+
+*/
+
+// 欢迎关注微信公众号[白玉无冰]
+
+/**
+█████████████████████████████████████
+█████████████████████████████████████
+████ ▄▄▄▄▄ █▀█ █▄██▀▄ ▄▄██ ▄▄▄▄▄ ████
+████ █   █ █▀▀▀█ ▀▄▀▀▀█▄▀█ █   █ ████
+████ █▄▄▄█ █▀ █▀▀▀ ▀▄▄ ▄ █ █▄▄▄█ ████
+████▄▄▄▄▄▄▄█▄▀ ▀▄█ ▀▄█▄▀ █▄▄▄▄▄▄▄████
+████▄▄  ▄▀▄▄ ▄▀▄▀▀▄▄▄ █ █ ▀ ▀▄█▄▀████
+████▀ ▄  █▄█▀█▄█▀█  ▀▄ █ ▀ ▄▄██▀█████
+████ ▄▀▄▄▀▄ █▄▄█▄ ▀▄▀ ▀ ▀ ▀▀▀▄ █▀████
+████▀ ██ ▀▄ ▄██ ▄█▀▄ ██▀ ▀ █▄█▄▀█████
+████   ▄██▄▀ █▀▄▀▄▀▄▄▄▄ ▀█▀ ▀▀ █▀████
+████ █▄ █ ▄ █▀ █▀▄█▄▄▄▄▀▄▄█▄▄▄▄▀█████
+████▄█▄█▄█▄█▀ ▄█▄   ▀▄██ ▄▄▄ ▀   ████
+████ ▄▄▄▄▄ █▄██ ▄█▀  ▄   █▄█  ▄▀█████
+████ █   █ █ ▄█▄ ▀  ▀▀██ ▄▄▄▄ ▄▀ ████
+████ █▄▄▄█ █ ▄▄▀ ▄█▄█▄█▄ ▀▄   ▄ █████
+████▄▄▄▄▄▄▄█▄██▄▄██▄▄▄█████▄▄█▄██████
+█████████████████████████████████████
+█████████████████████████████████████
+ */
