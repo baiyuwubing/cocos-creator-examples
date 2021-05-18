@@ -44,7 +44,9 @@ export default class MeshPolygonSprite extends cc.Component {
     }
     @property({ type: cc.SpriteFrame, tooltip: '精灵的精灵帧' })
     set spriteFrame(value) {
+        if (this._spriteFrame == value) return;
         this._spriteFrame = value;
+        this._resetVertexes();
         this._refreshAll();
     }
 
@@ -62,6 +64,7 @@ export default class MeshPolygonSprite extends cc.Component {
     @property({ type: cc.Vec2, tooltip: '顶点坐标' })
     set vertexes(value) {
         this._vertexes = value;
+        this._resetNodeSize();
         this._updateMesh();
         this._applyVertexes();
     }
@@ -85,6 +88,29 @@ export default class MeshPolygonSprite extends cc.Component {
         this._refreshAll();
     }
 
+    private _resetVertexes() {
+        this._vertexes.length = 0;
+        let node = this.node, frame = this.spriteFrame,
+            cw = frame?._originalSize.width, ch = frame?._originalSize.height,
+            appx = node.anchorX * cw, appy = node.anchorY * ch,
+            nw = node.width, nh = node.height,
+            anx = node.anchorX * nw, any = node.anchorY * nh;
+        if (this.spriteFrame)
+            this._vertexes.push(cc.v2(-appx, -appy), cc.v2(cw - appx, -appy), cc.v2(cw - appx, ch - appy), cc.v2(-appx, ch - appy));
+        else
+            this._vertexes.push(cc.v2(-anx, -any), cc.v2(nw - anx, -any), cc.v2(nw - anx, nh - any), cc.v2(-anx, nh - any));
+        this._resetNodeSize();
+    }
+
+    private _resetNodeSize() {
+        let x = 0, y = 0;
+        this._vertexes.forEach(value => {
+            x = Math.max(x, Math.abs(value.x));
+            y = Math.max(y, Math.abs(value.x));
+        });
+        this.node.setContentSize(x * 2, y * 2);
+    }
+
     private _refreshAll() {
         this._updateMesh();
         this._applySpriteFrame();
@@ -92,7 +118,7 @@ export default class MeshPolygonSprite extends cc.Component {
     }
 
     private _updateMesh() {
-        
+
         // cc.log('_updateMesh')
         let mesh = this._meshCache[this.vertexes.length];
         if (!mesh) {
@@ -107,7 +133,14 @@ export default class MeshPolygonSprite extends cc.Component {
         this.mesh = mesh;
     }
 
+    private _clamp(a: number, b: number, w: number) {
+        if (w < a) return a;
+        if (w > b) return b;
+        return w;
+    }
+
     private _lerp(a: number, b: number, w: number) {
+        w = this._clamp(0, 1, w);
         return a + w * (b - a);
     }
 
@@ -153,7 +186,7 @@ export default class MeshPolygonSprite extends cc.Component {
             // cc.log('ids');
             // cc.log(ids);
             mesh.setIndices(ids);
-            
+
             this.renderer.mesh = mesh;
         }
     }
@@ -169,19 +202,30 @@ export default class MeshPolygonSprite extends cc.Component {
              * l     r
              *    b
              */
-            const uv_l = uv[0];
-            const uv_r = uv[6];
-            const uv_b = uv[3];
-            const uv_t = uv[5];
+            let uv_l = uv[0];
+            let uv_r = uv[6];
+            let uv_b = uv[3];
+            let uv_t = uv[5];
+            if (this.spriteFrame.isRotated()) {
+                uv_l = uv[5];
+                uv_r = uv[3];
+                uv_b = uv[0];
+                uv_t = uv[6];
+            }
+
+            const size = this.spriteFrame._originalSize;
 
             // cc.log('uv', uv)
 
             // 计算uv
             const uvs = [];
             for (const pt of this.vertexes) {
-                const u = this._lerp(uv_l, uv_r, (pt.x + texture.width / 2 + this.offset.x) / texture.width);
-                const v = this._lerp(uv_b, uv_t, (pt.y + texture.height / 2 - this.offset.y) / texture.height);
-                uvs.push(cc.v2(u, v));
+                const u = this._lerp(uv_l, uv_r, (pt.x + size.width / 2 + this.offset.x) / size.width);
+                const v = this._lerp(uv_b, uv_t, (pt.y + size.height / 2 - this.offset.y) / size.height);
+                if (this.spriteFrame.isRotated())
+                    uvs.push(cc.v2(v, u));
+                else
+                    uvs.push(cc.v2(u, v));
             }
             mesh.setVertices(gfx.ATTR_UV0, uvs);
         }
@@ -198,7 +242,8 @@ export default class MeshPolygonSprite extends cc.Component {
             let texture = this.spriteFrame.getTexture();
             material.define("USE_DIFFUSE_TEXTURE", true);
             material.setProperty('diffuseTexture', texture);
-        }
+        } else if (this.renderer)
+            this.renderer.mesh = null;
     }
 }
 
